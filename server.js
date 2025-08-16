@@ -1,6 +1,7 @@
 import express from "express";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
+import cors from "cors";
 
 dotenv.config();
 
@@ -8,35 +9,57 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const MONGO_URL = process.env.MONGO_URL;
 
-if (!MONGO_URL) {
-  console.error("❌ MONGO_URL is missing in .env file!");
-  process.exit(1); // Stop the server if no DB URL
-}
-
-// Middleware
 app.use(express.json());
+app.use(cors());
 
-// Connect to MongoDB
+// MongoDB connect
 mongoose
-  .connect(MONGO_URL, {
-    // These options are not needed in new mongoose, but kept safe
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(() => {
-    console.log("✅ MongoDB Connected Successfully");
-  })
-  .catch((err) => {
-    console.error("❌ MongoDB Connection Error:", err.message);
-    process.exit(1); // Stop if DB connection fails
-  });
+  .connect(MONGO_URL)
+  .then(() => console.log("✅ MongoDB Connected Successfully"))
+  .catch((err) => console.error("❌ MongoDB Error:", err.message));
 
-// Simple test route
+// Schema & Model
+const diarySchema = new mongoose.Schema({
+  date: String,
+  page: Number,
+  content: String,
+});
+const Diary = mongoose.model("Diary", diarySchema);
+
+// Routes
 app.get("/", (req, res) => {
-  res.send("🚀 Backend is running & MongoDB connection is OK!");
+  res.send("🚀 Backend running with MongoDB");
+});
+
+// Save page
+app.post("/savePage", async (req, res) => {
+  const { date, page, content } = req.body;
+  try {
+    await Diary.findOneAndUpdate(
+      { date, page },
+      { content },
+      { upsert: true, new: true }
+    );
+    res.json({ message: "✅ Page saved" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get page
+app.get("/getPage", async (req, res) => {
+  const { date, page } = req.query;
+  try {
+    const entry = await Diary.findOne({ date, page });
+    res.json(entry || { content: "" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
+
